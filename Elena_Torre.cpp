@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <unistd.h>
+#include <assert.h>
 
 struct inputType //nested struct that holds information for individal inputs
 {
@@ -130,21 +131,23 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
 }
 void instrReader(operation *ptr, std::vector<std::string> instrArray, std::vector<bool> boolArray)
 {
+    assert(instrArray[0].size() == 1);
     char input = (instrArray[0])[0];//first element in the instruction array is always an input. I save it as a char
     std::stringstream operationInstr(instrArray[1]);//second element is the operation for the input
     int operationIdx; //I save the value of the operation as an int
     operationInstr >> operationIdx;
-    char inputOptions[] = "abcdefghij";//names of input_vars in alphabetical order. I can use the index to get the value from boolArray
+    std:: string inputOptions = "abcdefghij";//names of input_vars in alphabetical order. I can use the index to get the value from boolArray
     bool isOutput;
-    for(int i = 0; i< 10; i++)
+    for(std::string::size_type i = 0; i< inputOptions.size(); i++)
     {
         if(input == inputOptions[i])//if the input value is alphabetical then insert the corresponding position i
         {
+            
             isOutput = false;
             inputInsert(ptr, boolArray, operationIdx, i, isOutput);
             break;
         }
-        i++;
+        
     }
     isOutput = true;//if input value is not alphabetical then it is a reference to the output of another operation
     int outputIdx = input - '0';//change it into int by using ASCII table values
@@ -242,7 +245,7 @@ int main()
     }
     for(int i = 0; i < operations.size(); i++)
     {
-        std::cout<<operations[i].input.input2.inputValue<<std::endl;
+        std::cout<<operations[i].input.input1.inputValue<<std::endl;
     }
     
     return 0;
