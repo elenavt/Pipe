@@ -73,18 +73,22 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
                 myPtr->input.input1.type = 'i';
                 myPtr->input.input1.inputValue = boolArray[valIndex];
                 myPtr->input.hasInput1 = true;
+                if(myPtr->input.hasTwoInputs == false)
+                {
+                    myPtr->input.isFull = true;
+                }
             }
             else
             {
                 if(myPtr->input.hasTwoInputs == false)
                 {
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 else
                 {
                     myPtr->input.input2.type = 'i';
                     myPtr->input.input2.inputValue = boolArray[valIndex];
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 
             }
@@ -99,18 +103,22 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
                 myPtr->input.input1.type = 'o';
                 myPtr->input.input1.opOutput = valIndex;
                 myPtr->input.hasInput1 = true;
+                if(myPtr->input.hasTwoInputs == false)
+                {
+                    myPtr->input.isFull = true;
+                }
             }
             else
             {
                 if(myPtr->input.hasTwoInputs == false)
                 {
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 else
                 {
                     myPtr->input.input2.type = 'o';
                     myPtr->input.input2.opOutput = valIndex;
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 
             }
@@ -234,7 +242,7 @@ int main()
     }
     for(int i = 0; i < operations.size(); i++)
     {
-        std::cout<<operations[i].input.isFull<<std::endl;
+        std::cout<<operations[i].input.input2.inputValue<<std::endl;
     }
     
     return 0;
