@@ -14,6 +14,7 @@ struct inputType //nested struct that holds information for individal inputs
     bool inputValue;//true or false
     char type; // to see if the input is an output from another operation
     int opOutput; //if the input is an output from another operation, what is the index of that operation
+    bool waitingForOutput = false;
 };
 struct inputInfo //nested struct that holds the information for the input
 {
@@ -102,6 +103,7 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
             if(myPtr->input.hasInput1 == false)
             {
                 myPtr->input.input1.type = 'o';
+                myPtr->input.input1.waitingForOutput = true;
                 myPtr->input.input1.opOutput = valIndex;
                 myPtr->input.hasInput1 = true;
                 if(myPtr->input.hasTwoInputs == false)
@@ -119,6 +121,7 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
                 {
                     myPtr->input.input2.type = 'o';
                     myPtr->input.input2.opOutput = valIndex;
+                    myPtr->input.input2.waitingForOutput = true;
                     myPtr->input.isFull = true;
                 }
                 
@@ -138,6 +141,7 @@ void instrReader(operation *ptr, std::vector<std::string> instrArray, std::vecto
     operationInstr >> operationIdx;
     std:: string inputOptions = "abcdefghij";//names of input_vars in alphabetical order. I can use the index to get the value from boolArray
     bool isOutput;
+    int j = 0;
     for(std::string::size_type i = 0; i< inputOptions.size(); i++)
     {
         if(input == inputOptions[i])//if the input value is alphabetical then insert the corresponding position i
@@ -147,13 +151,14 @@ void instrReader(operation *ptr, std::vector<std::string> instrArray, std::vecto
             inputInsert(ptr, boolArray, operationIdx, i, isOutput);
             break;
         }
-        
+        j++;
     }
-    isOutput = true;//if input value is not alphabetical then it is a reference to the output of another operation
-    int outputIdx = input - '0';//change it into int by using ASCII table values
-    inputInsert(ptr, boolArray, operationIdx, outputIdx, isOutput);//use inputInsert function
-
-
+    if(j >= inputOptions.size())//to check that it went through all input options
+    {
+        isOutput = true;//if input value is not alphabetical then it is a reference to the output of another operation
+        int outputIdx = input - '0';//change it into int by using ASCII table values
+        inputInsert(ptr, boolArray, operationIdx, outputIdx, isOutput);//use inputInsert function
+    }
 
 }
 std::vector<bool> inputVarVal(std::vector<std::string> inp)
@@ -191,8 +196,6 @@ std::vector<bool> inputVarVal(std::vector<std::string> inp)
 }
 std::vector<std::string> vertexVal(std::vector<std::string> inp)
 {
-    //int vtxNumb = std::count(inp[2].begin(), inp[2].end(), ',') +1;
-    //number of commas +1 is the number of vertices
 
     std::vector<std::string> vtxValues;
     //array with the values of the vertices saved as strings
@@ -216,6 +219,43 @@ std::vector<std::string> vertexVal(std::vector<std::string> inp)
     return vtxValues;
     //return array of strings
 }
+bool calculation(operation op)
+{
+    bool result;
+    if(op.operationType == "OR")
+    {
+        if(op.input.isFull == true && (op.input.input1.waitingForOutput == false && op.input.input1.waitingForOutput == false))
+        {
+            result = op.input.input1.inputValue || op.input.input2.inputValue;
+            return result;
+        }
+    }
+    else if(op.operationType == "NOT")
+    {
+        if(op.input.isFull == true && op.input.input1.waitingForOutput == false)
+        {
+            result = !op.input.input1.inputValue;
+            return result;
+        }
+    }
+    else if(op.operationType == "IMPLY")
+    {
+        if(op.input.isFull == true && (op.input.input1.waitingForOutput == false && op.input.input1.waitingForOutput == false))
+        {
+            result = (!op.input.input1.inputValue || op.input.input2.inputValue);
+            return result;
+        }
+    }
+    else if(op.operationType == "AND")
+    {
+        if(op.input.isFull == true && (op.input.input1.waitingForOutput == false && op.input.input1.waitingForOutput == false))
+        {
+            result = op.input.input1.inputValue && op.input.input2.inputValue;
+            return result;
+        }
+    }
+
+}
 
 int main()
 { 
@@ -238,14 +278,15 @@ int main()
     
     operation *ptr = &operations[0]; //pointer to the start of the struct array
 
-    for(int i = 3; i < (fileCont.size()-1); i++)
+    for(int i = 3; i < (fileCont.size()-1); i++) //trim and read instruction lines
     {
         std::vector<std::string> instr = instrTrim(fileCont[i]);
         instrReader(ptr, instr, input_var);
     }
     for(int i = 0; i < operations.size(); i++)
     {
-        std::cout<<operations[i].input.input1.inputValue<<std::endl;
+        std::cout<<operations[i].input.input1.waitingForOutput<<std::endl;
+        std::cout<<operations[i].input.input2.waitingForOutput<<std::endl;
     }
     
     return 0;
