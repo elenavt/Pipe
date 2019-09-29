@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <unistd.h>
+#include <assert.h>
 
 struct inputType //nested struct that holds information for individal inputs
 {
@@ -26,7 +27,6 @@ struct operation //struct that holds the information for every vertex opetation
 {
     int index;
     inputInfo input;
-    bool output;
     std::string operationType;
 
 };
@@ -73,18 +73,22 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
                 myPtr->input.input1.type = 'i';
                 myPtr->input.input1.inputValue = boolArray[valIndex];
                 myPtr->input.hasInput1 = true;
+                if(myPtr->input.hasTwoInputs == false)
+                {
+                    myPtr->input.isFull = true;
+                }
             }
             else
             {
                 if(myPtr->input.hasTwoInputs == false)
                 {
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 else
                 {
                     myPtr->input.input2.type = 'i';
                     myPtr->input.input2.inputValue = boolArray[valIndex];
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 
             }
@@ -99,18 +103,22 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
                 myPtr->input.input1.type = 'o';
                 myPtr->input.input1.opOutput = valIndex;
                 myPtr->input.hasInput1 = true;
+                if(myPtr->input.hasTwoInputs == false)
+                {
+                    myPtr->input.isFull = true;
+                }
             }
             else
             {
                 if(myPtr->input.hasTwoInputs == false)
                 {
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 else
                 {
                     myPtr->input.input2.type = 'o';
                     myPtr->input.input2.opOutput = valIndex;
-                    myPtr->input.isFull == true;
+                    myPtr->input.isFull = true;
                 }
                 
             }
@@ -122,27 +130,31 @@ void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int op
 }
 void instrReader(operation *ptr, std::vector<std::string> instrArray, std::vector<bool> boolArray)
 {
+    assert(instrArray[0].size() == 1);
     char input = (instrArray[0])[0];//first element in the instruction array is always an input. I save it as a char
     std::stringstream operationInstr(instrArray[1]);//second element is the operation for the input
     int operationIdx; //I save the value of the operation as an int
     operationInstr >> operationIdx;
-    char inputOptions[] = "abcdefghij";//names of input_vars in alphabetical order. I can use the index to get the value from boolArray
+    std:: string inputOptions = "abcdefghij";//names of input_vars in alphabetical order. I can use the index to get the value from boolArray
     bool isOutput;
-    for(int i = 0; i< 10; i++)
+    int j = 0;
+    for(std::string::size_type i = 0; i< inputOptions.size(); i++)
     {
         if(input == inputOptions[i])//if the input value is alphabetical then insert the corresponding position i
         {
+            
             isOutput = false;
             inputInsert(ptr, boolArray, operationIdx, i, isOutput);
             break;
         }
-        i++;
+        j++;
     }
-    isOutput = true;//if input value is not alphabetical then it is a reference to the output of another operation
-    int outputIdx = input - '0';//change it into int by using ASCII table values
-    inputInsert(ptr, boolArray, operationIdx, outputIdx, isOutput);//use inputInsert function
-
-
+    if(j >= inputOptions.size())//to check that it went through all input options
+    {
+        isOutput = true;//if input value is not alphabetical then it is a reference to the output of another operation
+        int outputIdx = input - '0';//change it into int by using ASCII table values
+        inputInsert(ptr, boolArray, operationIdx, outputIdx, isOutput);//use inputInsert function
+    }
 
 }
 std::vector<bool> inputVarVal(std::vector<std::string> inp)
@@ -180,8 +192,6 @@ std::vector<bool> inputVarVal(std::vector<std::string> inp)
 }
 std::vector<std::string> vertexVal(std::vector<std::string> inp)
 {
-    //int vtxNumb = std::count(inp[2].begin(), inp[2].end(), ',') +1;
-    //number of commas +1 is the number of vertices
 
     std::vector<std::string> vtxValues;
     //array with the values of the vertices saved as strings
@@ -206,9 +216,82 @@ std::vector<std::string> vertexVal(std::vector<std::string> inp)
     //return array of strings
 }
 
+int vpipes[20]; //create 20 pipes, as we will have at most 10 vertices. It will also be a global variable
+int sizeofbool = sizeof(bool); //variable to know exactly how much space I need for my buffer
+
+
+void calculation(operation op)
+{
+    bool buf[sizeofbool];
+    
+    if(op.input.hasTwoInputs == false) //if the operation is a NOT
+    {
+        if(op.input.input1.type == 'o') //if NOT is waiting for input from another operation
+        {
+            close(vpipes[(2*op.input.input1.opOutput)+1]); //close write end of the pipe of output operation
+            read(vpipes[2*op.input.input1.opOutput], buf, sizeofbool); //read from output operation
+            close(vpipes[2*op.index]); //close read end of main operation type
+            buf[sizeofbool] = !buf[sizeofbool];
+            write(vpipes[(2*op.index)+1], buf, sizeofbool); //write result
+        }
+        else
+        {
+            buf[sizeofbool] = !op.input.input1.inputValue;
+            close(vpipes[2*op.index]); //close read end of main operation type
+            write(vpipes[(2*op.index)+1], buf, sizeofbool); //write result
+        }
+       
+    }
+    else
+    {
+        if(op.operationType == "AND")
+        {
+            if(op.input.input1.type == 'o') //if NOT is waiting for input from another operation
+            {
+                close(vpipes[(2*op.input.input1.opOutput)+1]); //close write end of the pipe of output operation
+                read(vpipes[2*op.input.input1.opOutput], buf, sizeofbool); //read from output operation
+                bool inp1 = buf[sizeofbool]; //store first input into variable
+                if(op.input.input2.type == 'o')
+                {
+                    close(vpipes[(2*op.input.input2.opOutput)+1]); //close write end of the pipe of output operation
+                    read(vpipes[2*op.input.input2.opOutput], buf, sizeofbool); //read from output operation
+                    bool inp2 = buf[sizeofbool]; //store first input into variable
+                    buf[sizeofbool] = inp1 && inp2; //get result of operation
+                    close(vpipes[2*op.index]); //close read end of main operation type
+                    write(vpipes[(2*op.index)+1], buf, sizeofbool); //write result
+
+                }
+                else
+                {
+                    bool inp2 = op.input.input2.inputValue;
+                    buf[sizeofbool] = inp1 && inp2; //get result of operation
+                    close(vpipes[2*op.index]); //close read end of main operation type
+                    write(vpipes[(2*op.index)+1], buf, sizeofbool); //write result
+
+                }
+            }
+        }
+        else if(op.operationType == "OR")
+        {
+            
+        }
+        else if(op.operationType == "IMPLY")
+        {
+            
+        }
+        else
+        {
+            std::cout<<"invalid operation for vertix: "<<op.index<<std::endl;
+        }
+        
+    }
+    
+
+   
+}
+
 int main()
 { 
-    
     std::vector<std::string> fileCont;
 
     for (std::string line; std::getline(std::cin, line); )
@@ -227,15 +310,60 @@ int main()
     
     operation *ptr = &operations[0]; //pointer to the start of the struct array
 
-    for(int i = 3; i < (fileCont.size()-1); i++)
+    for(int i = 3; i < (fileCont.size()-1); i++) //trim and read instruction lines
     {
         std::vector<std::string> instr = instrTrim(fileCont[i]);
         instrReader(ptr, instr, input_var);
     }
-    for(int i = 0; i < operations.size(); i++)
+    for(int i = 0; i < vertices.size(); i++)
     {
-        std::cout<<operations[i].input.isFull<<std::endl;
+        pipe(&vpipes[2*i]);
     }
+
+    int pid;
+    std::vector<bool> vertexResults;
+    for(int i = 0; i < vertices.size(); i++)
+    {
+        pid = fork();
+        if(pid == -1)
+        {
+            perror("error creating pipe");
+        }
+        else if(pid == 0)
+        {
+             std::cout<< "child created" << std::endl;
+            calculation(operations[i]); //child processes will do the calculations
+            break;
+        }
+    }
+    if(pid != 0) //parent process
+    {
+        std::cout<< "dad created" << std::endl;
+        std::cout<< "wait for keystroke ---";
+        int x; std::cin >> x; // wait for keystroke
+        for(int i = 0; i < vertices.size(); i++)
+        {
+            close(vpipes[(2*i)+1]); //close the write end of all pipes
+
+        }
+        for(int i = 0; i < vertices.size(); i++)
+        {
+            bool buf[sizeofbool];
+            read(vpipes[2*i], buf, sizeofbool); //read from read end of all pipes to get results
+            vertexResults.push_back(buf[sizeofbool]); //save results on vertexResults bool vertex
+            close(vpipes[2*i]);// close read end
+        }
+        char inputVarNames[] = {'a','b','c','d','e','f','g','h','i','j'};
+        for(int i = 0; i < input_var.size(); i++) // print the values of all input variables
+        {
+            //std::cout<< inputVarNames[i] << " = " << std::boolalpha << input_var[i] << std::endl;
+        }
+        for(int i = 0; i < vertexResults.size(); i++)
+        {
+            //std::cout << "v" << i << " = " << std::boolalpha << vertexResults[i] << std::endl;
+        }
+    }
+
     
     return 0;
 }
