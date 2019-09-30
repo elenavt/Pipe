@@ -218,25 +218,25 @@ std::vector<std::string> vertexVal(std::vector<std::string> inp)
 
 int vpipes[20]; //create 20 pipes, as we will have at most 10 vertices. It will also be a global variable
 int sizeofbool = sizeof(bool); //variable to know exactly how much space I need for my buffer
-
+std::vector<bool> vertexResults; //vector to store result from operations
 void log(int idx, std::string message) {
     std::cout<< "["<<idx<<"] "<< message << std::endl;
 }
 
-void calculation(operation op)
+bool calculation(operation op)
 {
     bool buf1[sizeofbool]; 
     bool buf2[sizeofbool];
     bool bufRes[sizeofbool];//buffers for read/write operations
     
-    //log(op.index, "Starting...");
-    //log(op.index, "operation type: " + op.operationType);
-    /*log(op.index, "Input 1 type:" + std::to_string(op.input.input1.type ));
+    log(op.index, "Starting...");
+    log(op.index, "operation type: " + op.operationType);
+    log(op.index, "Input 1 type: " + std::string(1, op.input.input1.type));
     log(op.index, "Input 1 Value: " + std::to_string(op.input.input1.inputValue));
     log(op.index, "Input 1 Index: " + std::to_string(op.input.input1.opOutput));
-    log(op.index, "Input 2 type:" + std::to_string(op.input.input2.type ));
+    log(op.index, "Input 2 type: " + std::string(1, op.input.input2.type));
     log(op.index, "Input 2 Value: " + std::to_string(op.input.input2.inputValue));
-    log(op.index, "Input 1 Index: " + std::to_string(op.input.input2.opOutput));*/
+    log(op.index, "Input 2 Index: " + std::to_string(op.input.input2.opOutput));
 
     if(op.operationType == "NOT") //if the operation is a NOT
     {
@@ -248,17 +248,21 @@ void calculation(operation op)
             close(vpipes[2*op.input.input1.opOutput]); //close read end of the pipe of output operation
             close(vpipes[2*op.index]); //close read end of main operation
             buf1[0] = !(buf1[0]);
+            log(op.index, "NOT Result: " + std::to_string(buf1[0]));
             int x = write(vpipes[(2*op.index)+1], buf1, sizeofbool); //write result
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
+            return buf1[0];
         }
         else
         {
             buf1[0] = !(op.input.input1.inputValue);
             close(vpipes[2*op.index]); //close read end of main operation
+            log(op.index, "NOT Result: " + std::to_string(buf1[0]));
             int x = write(vpipes[(2*op.index)+1], buf1, sizeofbool); //write result
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
+            return buf1[0];
         }
        
     }
@@ -270,9 +274,11 @@ void calculation(operation op)
             bool inp2 = op.input.input2.inputValue;
             bufRes[0] = (inp1 && inp2); //store result of operation in buff
             close(vpipes[2*op.index]);//close read end of main operation
+            log(op.index, "AND Result: " + std::to_string(bufRes[0]));
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
+            return bufRes[0];
         }
         else if(op.input.input1.type == 'o' && op.input.input2.type == 'o') //if both waiting for output from another operation
         {
@@ -291,8 +297,10 @@ void calculation(operation op)
             bufRes[0] = (inp1 && inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "AND Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
 
         }
         else if (op.input.input1.type == 'o' && op.input.input2.type == 'i')
@@ -308,8 +316,10 @@ void calculation(operation op)
             bufRes[0] = (inp1 && inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
              int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+             log(op.index, "AND Result: " + std::to_string(bufRes[0]));
              if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
 
 
         }
@@ -326,10 +336,16 @@ void calculation(operation op)
             bufRes[0] = (inp1 && inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "AND Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
         }
-        else std::cout<< "error"<<std::endl;
+        else
+        {
+            std::cout<< "error"<<std::endl;
+            return false;
+        }
 
     }
 
@@ -343,8 +359,10 @@ void calculation(operation op)
             //log(op.index, "result: " + std::to_string(bufRes[sizeofbool]));
             close(vpipes[2*op.index]);//close read end of main operation
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
+            return bufRes[0];
         }
         else if(op.input.input1.type == 'o' && op.input.input2.type == 'o') //if both waiting for output from another operation
         {
@@ -363,8 +381,10 @@ void calculation(operation op)
             bufRes[0] = (inp1 || inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
 
         }
         else if (op.input.input1.type == 'o' && op.input.input2.type == 'i')
@@ -380,8 +400,10 @@ void calculation(operation op)
             bufRes[0] = (inp1 || inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
 
 
         }
@@ -398,10 +420,17 @@ void calculation(operation op)
             bufRes[0] = (inp1 || inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
         }
-        else std::cout<< "error"<<std::endl;
+        else 
+        {
+            std::cout<< "error"<<std::endl;
+            return false;
+        }
+
     }
 
     else if(op.operationType == "IMPLY")
@@ -413,8 +442,10 @@ void calculation(operation op)
             bufRes[0] = (!inp1 || inp2); //store result of operation in buff
             close(vpipes[2*op.index]);//close read end of main operation
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
+            return bufRes[0];
         }
         else if(op.input.input1.type == 'o' && op.input.input2.type == 'o') //if both waiting for output from another operation
         {
@@ -433,8 +464,10 @@ void calculation(operation op)
             bufRes[0] = (!inp1 || inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
 
         }
         else if (op.input.input1.type == 'o' && op.input.input2.type == 'i')
@@ -450,8 +483,10 @@ void calculation(operation op)
             bufRes[0] = (!inp1 || inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
 
 
         }
@@ -467,15 +502,22 @@ void calculation(operation op)
             bufRes[0] = (!inp1 || inp2); //get result of operation
             close(vpipes[2*op.index]); //close read end of main operation type
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
+            log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
+            return bufRes[0];
         }
-        else std::cout<< "error"<<std::endl;
+        else 
+        {
+            std::cout<< "error"<<std::endl;
+            return false;
+        }
     }
 
     else
     {
         std::cout<<"invalid operation for vertix: "<<op.index<<std::endl;
+        return false;
     }
 
 }
@@ -513,7 +555,7 @@ int main()
     //log(-1,"MAIN: Vertices: " + std::to_string(vertices.size()));
 
     int pid;
-    std::vector<bool> vertexResults;
+    
     for(int i = 0; i < vertices.size(); i++)
     {
         pid = fork();
@@ -532,20 +574,12 @@ int main()
         for(int i = 0; i < vertices.size(); i++)
         {
             close(vpipes[(2*i)+1]); //close the write end of all pipes
+            close(vpipes[(2*i)]);
         }
 
         log(-1, "waiting for 2 seconds....");
         sleep(2);
 
-        for(int i = 0; i < vertices.size(); i++)
-        {
-            bool buf[sizeofbool];
-            int y = read(vpipes[2*i], buf, sizeofbool); //read from read end of all pipes to get results
-            std::cout<< buf[0]<< std::endl;
-            if(y == 0) std::cout<< "error reading vertix: "<< i <<std::endl;
-            vertexResults.push_back(buf[0]); //save results on vertexResults bool vertex
-            close(vpipes[2*i]);// close read end
-        }
         char inputVarNames[] = {'a','b','c','d','e','f','g','h','i','j'};
         for(int i = 0; i < input_var.size(); i++) // print the values of all input variables
         {
