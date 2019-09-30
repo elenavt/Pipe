@@ -31,6 +31,137 @@ struct operation //struct that holds the information for every vertex opetation
 
 };
 
+int vpipes[20]; //create 20 pipes, as we will have at most 10 vertices. These pipes will handle communications between vertices
+int sizeofbool = sizeof(bool); //variable to know exactly how much space I need for my buffer
+int vresults[20]; //create 20 pipes that will be used to pipe the results from the child processes to the parent process
+
+//functions:
+operation operationCreator(std::vector<std::string> vertices, int i);
+/*operationCreator creates an operation struct for every vertex and records whether the operation needs 2 inputs*/
+std::vector<std::string> instrTrim(std::string line);
+/*instrTrim removes unnecessary characters from the lines of the text file that contain instructions.
+It then stores the information in a size 2 array, where the first element always contains the input and the second
+always contains the operation that is taking in the input */
+void inputInsert(operation *operationPointer, std::vector<bool> boolArray,int operationIdx, int valIndex, bool isOutput);
+/* inputInsert takes in a pointer to the operation in the struct array that corresponds to the input being inserted, 
+the vector that contains the values of all input variables, the operation index, the int value valIndex and a boolean
+representing whether the input comes from a variable or the output of another operation. If the input comes from a 
+variable, valIndex indicates the index in the vector on input variables where the input is located. If the input is the output
+of another operation, valIndex indicates the index of the operation whose output we need. The function stores all
+the information into the operation struct*/
+void instrReader(operation *ptr, std::vector<std::string> instrArray, std::vector<bool> boolArray);
+/* instrReader takes in a pointer to the operation in the struct array that corresponds to the input being inserted, 
+the size 2 array that contains the input and corresponding operation, and the array with the values of all input variables.
+The function checks whether the input is a variable or the output of another operation. It then calls the inputInsert function
+and passes it the information it needs*/
+std::vector<bool> inputVarVal(std::vector<std::string> inp);
+/*inputVarVal records the number of input variables that will be used and their values. It returns a vector that contains 
+the values of all the variables in order*/
+std::vector<std::string> vertexVal(std::vector<std::string> inp);
+/*vertexVal records how many vertices we have and what operation type each one is. It returns a string vector with 
+the operation types*/
+void log(int idx, std::string message);
+void calculation(operation op);
+/*calculation performs the operations and pipes the results as needed. It takes in every operation struct and it is called
+by the child process*/
+
+int main() 
+{ 
+    /*the input text file is passed as the console input
+    example:
+    g++ Elena_Torre.cpp
+    ./a.out < input.txt*/
+
+    std::vector<std::string> fileCont; //string vector to store each line on the text file
+
+    for (std::string line; std::getline(std::cin, line); )
+    {
+       fileCont.push_back(line); //each line is an element in this vector
+    }
+
+    std::vector<bool> input_var = inputVarVal(fileCont); //store the input variables in a vector
+    std::vector<std::string> vertices = vertexVal(fileCont); //store vertex operations in a vector
+    std::vector<operation> operations; //create a vector of operation structs
+
+    for(int i = 0; i < vertices.size(); i++)
+    {
+        operations.push_back(operationCreator(vertices, i)); //create a struct for every vertex
+    }
+    
+    operation *ptr = &operations[0]; //pointer to the start of the struct array
+
+    for(int i = 3; i < (fileCont.size()-1); i++) //trim and read instruction lines
+    {
+        std::vector<std::string> instr = instrTrim(fileCont[i]);
+        instrReader(ptr, instr, input_var);
+    }
+    for(int i = 0; i < vertices.size(); i++) //open vertex pipes
+    {
+        pipe(&vpipes[2*i]);
+    }
+    for(int i = 0; i < vertices.size(); i++) //open result pipes
+    {
+        pipe(&vresults[2*i]);
+    }
+
+    log(-1,"MAIN: Vertices: " + std::to_string(vertices.size()));
+
+    int pid; //process ID
+    //int childIdx = 0; 
+    for(int i = 0; i < vertices.size(); i++)
+    {
+        pid = fork(); //fork
+        if(pid == -1)
+        {
+            perror("error creating pipe");
+        }
+        else if(pid == 0)
+        {
+            calculation(operations[i]); //child processes will do the calculations and then break out of the loop
+            //childIdx = i;
+            break;
+        }
+    }
+    if(pid != 0) //parent process
+    {
+
+        //log(-1, "waiting for 2 seconds....");
+        //sleep(2);
+
+        bool results[10]; //buffer to store all operation results
+        for(int i = 0; i < vertices.size(); i++)
+        {
+            bool buf[sizeofbool]; //buffer to read results
+            int x = read(vresults[2*i], buf, sizeofbool);
+            if (x==0) std::cout<< "error reading from vertex: "<< i<< std::endl;
+            results[i] = buf[0];
+
+
+        }
+         for(int i = 0; i < vertices.size(); i++)
+        {
+            close(vresults[(2*i)+1]); //close the write and read end of all result pipes
+            close(vresults[(2*i)]);
+        }
+        for(int i = 0; i < vertices.size(); i++)
+        {
+            close(vpipes[(2*i)+1]); //close the write and read end of all vertex pipes
+            close(vpipes[(2*i)]);
+        }
+        char inputVarNames[] = {'a','b','c','d','e','f','g','h','i','j'};
+        for(int i = 0; i < input_var.size(); i++) // print the values of all input variables
+        {
+            std::cout<< inputVarNames[i] << " = " << std::boolalpha << input_var[i] << std::endl;
+        }
+        for(int i = 0; i < vertices.size(); i++) //print the results of all operations
+        {
+            std::cout << "v" << i << " = " << std::boolalpha << results[i] << std::endl;
+        }
+    }
+   
+    return 0;
+}
+
 operation operationCreator(std::vector<std::string> vertices, int i) //function to create operations
 {
     operation operation;
@@ -216,14 +347,12 @@ std::vector<std::string> vertexVal(std::vector<std::string> inp)
     //return array of strings
 }
 
-int vpipes[20]; //create 20 pipes, as we will have at most 10 vertices. It will also be a global variable
-int sizeofbool = sizeof(bool); //variable to know exactly how much space I need for my buffer
-std::vector<bool> vertexResults; //vector to store result from operations
+
 void log(int idx, std::string message) {
     std::cout<< "["<<idx<<"] "<< message << std::endl;
 }
 
-bool calculation(operation op)
+void calculation(operation op)
 {
     bool buf1[sizeofbool]; 
     bool buf2[sizeofbool];
@@ -242,6 +371,7 @@ bool calculation(operation op)
     {
         if(op.input.input1.type == 'o') //if NOT is waiting for input from another operation
         {
+
             close(vpipes[(2*op.input.input1.opOutput)+1]); //close write end of the pipe of output operation
             int y = read(vpipes[2*op.input.input1.opOutput], buf1, sizeofbool); //read from output operation
             if(y == 0) std::cout<< "error on read on operation "<< op.index<< std::endl;
@@ -251,8 +381,13 @@ bool calculation(operation op)
             log(op.index, "NOT Result: " + std::to_string(buf1[0]));
             int x = write(vpipes[(2*op.index)+1], buf1, sizeofbool); //write result
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
-            close(vpipes[(2*op.index)+1]); //close write end of main operation
-            return buf1[0];
+            close(vpipes[(2*op.index)+1]); //close write end of main operation\
+            
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], buf1, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
         else
         {
@@ -262,7 +397,12 @@ bool calculation(operation op)
             int x = write(vpipes[(2*op.index)+1], buf1, sizeofbool); //write result
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
-            return buf1[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], buf1, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
        
     }
@@ -278,7 +418,12 @@ bool calculation(operation op)
             int x = write(vpipes[(2*op.index)+1], bufRes, sizeofbool); //write result
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
         else if(op.input.input1.type == 'o' && op.input.input2.type == 'o') //if both waiting for output from another operation
         {
@@ -300,7 +445,12 @@ bool calculation(operation op)
             log(op.index, "AND Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
 
         }
         else if (op.input.input1.type == 'o' && op.input.input2.type == 'i')
@@ -319,7 +469,12 @@ bool calculation(operation op)
              log(op.index, "AND Result: " + std::to_string(bufRes[0]));
              if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
 
 
         }
@@ -339,12 +494,16 @@ bool calculation(operation op)
             log(op.index, "AND Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
         else
         {
             std::cout<< "error"<<std::endl;
-            return false;
         }
 
     }
@@ -362,7 +521,12 @@ bool calculation(operation op)
             log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
         else if(op.input.input1.type == 'o' && op.input.input2.type == 'o') //if both waiting for output from another operation
         {
@@ -384,7 +548,12 @@ bool calculation(operation op)
             log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
 
         }
         else if (op.input.input1.type == 'o' && op.input.input2.type == 'i')
@@ -403,8 +572,12 @@ bool calculation(operation op)
             log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
 
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
 
         }
         else if(op.input.input1.type == 'i' && op.input.input2.type == 'o')
@@ -423,12 +596,16 @@ bool calculation(operation op)
             log(op.index, "OR Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
         else 
         {
             std::cout<< "error"<<std::endl;
-            return false;
         }
 
     }
@@ -445,7 +622,12 @@ bool calculation(operation op)
             log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]); //close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
         else if(op.input.input1.type == 'o' && op.input.input2.type == 'o') //if both waiting for output from another operation
         {
@@ -467,7 +649,12 @@ bool calculation(operation op)
             log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
 
         }
         else if (op.input.input1.type == 'o' && op.input.input2.type == 'i')
@@ -486,8 +673,12 @@ bool calculation(operation op)
             log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
 
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
 
         }
         else if(op.input.input1.type == 'i' && op.input.input2.type == 'o')
@@ -505,94 +696,24 @@ bool calculation(operation op)
             log(op.index, "IMPLY Result: " + std::to_string(bufRes[0]));
             if(x == 0) std::cout<< "error on write on operation "<< op.index<< std::endl;
             close(vpipes[(2*op.index)+1]);//close write end of main operation
-            return bufRes[0];
+
+            //piping result
+            close(vresults[2*op.index]); //close read end of the result pipe
+            int r = write(vresults[(2*op.index)+1], bufRes, sizeofbool); //write result
+            if(r == 0) std::cout<< "error on write (result pipe) on operation "<< op.index<< std::endl;
+            close(vresults[(2*op.index)+1]);
         }
         else 
         {
             std::cout<< "error"<<std::endl;
-            return false;
         }
     }
 
     else
     {
         std::cout<<"invalid operation for vertix: "<<op.index<<std::endl;
-        return false;
     }
 
-}
-
-int main()
-{ 
-    std::vector<std::string> fileCont;
-
-    for (std::string line; std::getline(std::cin, line); )
-    {
-       fileCont.push_back(line); 
-    }
-
-    std::vector<bool> input_var = inputVarVal(fileCont);
-    std::vector<std::string> vertices = vertexVal(fileCont);
-    std::vector<operation> operations;
-
-    for(int i = 0; i < vertices.size(); i++)
-    {
-        operations.push_back(operationCreator(vertices, i));
-    }
-    
-    operation *ptr = &operations[0]; //pointer to the start of the struct array
-
-    for(int i = 3; i < (fileCont.size()-1); i++) //trim and read instruction lines
-    {
-        std::vector<std::string> instr = instrTrim(fileCont[i]);
-        instrReader(ptr, instr, input_var);
-    }
-    for(int i = 0; i < vertices.size(); i++)
-    {
-        pipe(&vpipes[2*i]);
-    }
-
-    //log(-1,"MAIN: Vertices: " + std::to_string(vertices.size()));
-
-    int pid;
-    
-    for(int i = 0; i < vertices.size(); i++)
-    {
-        pid = fork();
-        if(pid == -1)
-        {
-            perror("error creating pipe");
-        }
-        else if(pid == 0)
-        {
-            calculation(operations[i]); //child processes will do the calculations
-            break;
-        }
-    }
-    if(pid != 0) //parent process
-    {
-        for(int i = 0; i < vertices.size(); i++)
-        {
-            close(vpipes[(2*i)+1]); //close the write end of all pipes
-            close(vpipes[(2*i)]);
-        }
-
-        log(-1, "waiting for 2 seconds....");
-        sleep(2);
-
-        char inputVarNames[] = {'a','b','c','d','e','f','g','h','i','j'};
-        for(int i = 0; i < input_var.size(); i++) // print the values of all input variables
-        {
-            std::cout<< inputVarNames[i] << " = " << std::boolalpha << input_var[i] << std::endl;
-        }
-        for(int i = 0; i < vertexResults.size(); i++)
-        {
-            std::cout << "v" << i << " = " << std::boolalpha << vertexResults[i] << std::endl;
-        }
-    }
-
-    
-    return 0;
 }
 
 
